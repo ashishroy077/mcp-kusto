@@ -13,6 +13,7 @@ This server follows Azure best practices for authentication and data handling.
 import os
 import sys
 import importlib.util
+import json
 
 # Add parent directory to path for direct script execution
 if __name__ == "__main__" and not __package__:
@@ -26,10 +27,13 @@ if __name__ == "__main__" and not __package__:
 try:
     import mcp.server.fastmcp
 except ImportError:
-    print("ERROR: Required packages are not installed. Please run:")
-    print("pip install -r requirements.txt")
-    print("\nOr install directly:")
-    print("pip install mcp>=0.11.0 azure-kusto-data>=4.2.0 azure-kusto-ingest>=4.2.0 azure-identity>=1.15.0 python-dotenv>=1.0.0 pandas>=2.0.0")
+    # Format as proper MCP message for VS Code
+    error_msg = {
+        "type": "error",
+        "message": "Required packages are not installed.",
+        "details": "pip install -r requirements.txt\n\nOr install directly:\npip install mcp>=0.11.0 azure-kusto-data>=4.2.0 azure-kusto-ingest>=4.2.0 azure-identity>=1.15.0 python-dotenv>=1.0.0 pandas>=2.0.0"
+    }
+    print(json.dumps(error_msg))
     sys.exit(1)
 
 import asyncio
@@ -55,11 +59,18 @@ except ImportError:
 # Load environment variables from .env file if present
 load_dotenv()
 
-# Create the MCP server instance
+# Use proper logging that conforms to MCP protocol
+def log_message(message, type="info"):
+    """Log messages in MCP protocol format"""
+    msg = {"type": type, "message": message}
+    print(json.dumps(msg), flush=True)
+
+# Create the MCP server instance with debug mode enabled
 server = FastMCP(
     "Azure Kusto MCP Server",
     description="Connect to Azure Kusto, explore schemas, and run KQL queries",
-    dependencies=["azure-kusto-data", "azure-kusto-ingest", "azure-identity", "pandas"]
+    dependencies=["azure-kusto-data", "azure-kusto-ingest", "azure-identity", "pandas"],
+    debug=True  # Enable debug mode to see more information
 )
 
 @asynccontextmanager
@@ -90,14 +101,21 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
             
         # Make it available to the Context objects
         yield context_dict
+        
+        # Log successful initialization
+        log_message("Server lifespan initialized successfully")
+        log_message(f"Available tools: {list(server.tools.keys()) if hasattr(server, 'tools') else 'None'}")
+        
     finally:
         # Cleanup connections when server shuts down
         await connection_manager.close_connections()
+        log_message("Server shutting down, connections closed")
 
 # Register lifespan handler
 server.lifespan = server_lifespan
 
 # Register all resources, tools, and prompts
+log_message("Registering resources, tools, and prompts...")
 register_resources(server)
 register_tools(server)
 register_prompts(server)
@@ -108,8 +126,17 @@ def main():
     
     This function is used by the command-line script when installed via pip.
     """
-    print("Starting Azure Kusto MCP Server...")
-    print("To connect to a Kusto cluster, use the 'connect' tool.")
+    log_message("Starting Azure Kusto MCP Server...")
+    log_message("To connect to a Kusto cluster, use the 'connect' tool.")
+    log_message(f"Available tools: {list(server.tools.keys()) if hasattr(server, 'tools') else 'None'}")
+    
+    # Explicitly print instructions for tool usage
+    log_message("Tool usage instructions:", "info")
+    log_message("- Use Copilot Chat to interact with tools", "info")
+    log_message("- Example: Ask 'Can you connect to my Kusto database?'", "info")
+    log_message("- Copilot will offer to use the 'connect' tool for you", "info")
+    
+    # Run the server
     server.run()
 
 if __name__ == "__main__":

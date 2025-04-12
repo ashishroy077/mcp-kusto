@@ -50,11 +50,57 @@ AZURE_KUSTO_CLUSTER=https://<your-cluster>.kusto.windows.net
 AZURE_KUSTO_DATABASE=<your-database>
 ```
 
+## Creating mcp.json Configuration File
+
+The `mcp.json` file is required to configure the MCP server with VS Code. If you're setting up manually or the setup script didn't create this file, follow these steps:
+
+1. Create a new file named `mcp.json` in the `.vscode` directory of your workspace (create this directory if it doesn't exist)
+2. Add the following content to the file:
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "kusto-cluster",
+      "description": "Azure Kusto Cluster URL (e.g., https://mycluster.kusto.windows.net)",
+      "default": ""
+    },
+    {
+      "type": "promptString",
+      "id": "kusto-database",
+      "description": "Azure Kusto Database Name",
+      "default": ""
+    }
+  ],
+  "servers": {
+    "Azure Kusto MCP": {
+      "type": "stdio",
+      "command": "${command:python.interpreterPath}",
+      "args": ["${workspaceFolder}/src/kusto_mcp/server.py"],
+      "env": {
+        "AZURE_KUSTO_CLUSTER": "${input:kusto-cluster}",
+        "AZURE_KUSTO_DATABASE": "${input:kusto-database}",
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+3. If needed, customize the configuration:
+   - Change the `command` if you need to use a specific Python interpreter path
+   - Modify the `args` if your server script is located elsewhere
+   - Add additional environment variables if required
+   - Note that `${workspaceFolder}` and `${command:python.interpreterPath}` are VS Code variables that will be automatically replaced with the appropriate paths
+
+This configuration includes input prompts that will ask for your Kusto cluster URL and database name each time you start the server, making it easy to switch between different databases.
+
 ## VS Code Integration
 
 To use the MCP server with VS Code:
 
-1. Make sure you've run the setup script: `python setup-mcp.py`
+1. Make sure you've run the setup script: `python setup-mcp.py` or manually created the `mcp.json` file
 2. Install the GitHub Copilot or Copilot Chat extension in VS Code
 3. Open the Command Palette (Ctrl+Shift+P) 
 4. Run "MCP: Start Server with Configuration"
@@ -107,14 +153,220 @@ The following tools are available:
 - `analyze_data` - Execute a query and analyze the results
 - `optimize_query` - Get suggestions for query optimization
 
-## Prompts
+## Tools Usage Guide
 
-Built-in prompts for common data analysis tasks:
+The Kusto MCP server provides several tools for interacting with Azure Kusto. Here's how to use each tool effectively:
 
-- `time_series_analysis` - Analysis of time series data
-- `cohort_analysis` - Retention and cohort studies
-- `funnel_analysis` - User journey through event sequences
-- `data_quality_check` - Data quality assessment
+### Connect Tool
+
+The `connect` tool establishes a connection to an Azure Kusto cluster and database.
+
+**Usage in Copilot Chat:**
+```
+I need to connect to my Kusto cluster
+```
+
+This tool will prompt you for:
+- The cluster URL (e.g., https://yourcluster.kusto.windows.net)
+- The database name
+
+Authentication is handled automatically via Azure's DefaultAzureCredential.
+
+**Example:**
+```
+Connect to the Kusto database named "MyDatabase" on the cluster "analytics.kusto.windows.net"
+```
+
+### Connection Status Tool
+
+The `connection_status` tool shows your current connection details.
+
+**Usage in Copilot Chat:**
+```
+Check my current Kusto connection
+```
+
+**Example Output:**
+```
+✅ Connected to Azure Kusto.
+        
+- **Cluster**: https://analytics.kusto.windows.net
+- **Database**: MyDatabase
+```
+
+### Execute Query Tool
+
+The `execute_query` tool runs KQL queries against your connected database.
+
+**Usage in Copilot Chat:**
+```
+Run this KQL query: <your query here>
+```
+
+**Example:**
+```
+Run this KQL query: StormEvents | where State == "FLORIDA" | take 10
+```
+
+For large result sets (>100 rows), the tool will return a summary and the first 10 rows.
+
+### Analyze Data Tool
+
+The `analyze_data` tool executes a query and performs analysis on the results.
+
+**Usage in Copilot Chat:**
+```
+Analyze this query: <your query here>
+```
+
+You can specify an analysis type:
+- `summary` (default): Basic statistics about the data
+- `stats`: Detailed statistical analysis including correlations
+- `plot_ready`: Information to help visualize the data
+
+**Example:**
+```
+Analyze this query with stats analysis: StormEvents | summarize count() by State | top 10 by count_
+```
+
+### Optimize Query Tool
+
+The `optimize_query` tool provides suggestions to improve your KQL queries.
+
+**Usage in Copilot Chat:**
+```
+Optimize this KQL query: <your query here>
+```
+
+**Example:**
+```
+Optimize this KQL query: 
+StormEvents
+| project *
+| where StartTime > ago(7d)
+| sort by StartTime desc
+```
+
+## Advanced Usage Scenarios
+
+### Exploring Table Schemas
+
+To explore available tables and their schemas:
+
+```
+What tables are available in this database?
+```
+
+To examine a specific table's schema:
+
+```
+Show me the schema for the StormEvents table
+```
+
+### Time Series Analysis
+
+For time-based data analysis:
+
+```
+Help me analyze time trends in the StormEvents table using the StartTime column
+```
+
+### Correlation Analysis
+
+To find relationships between columns:
+
+```
+Find correlations between DamageProperty and DeathsDirect in the StormEvents table
+```
+
+### Data Quality Checks
+
+To verify data quality:
+
+```
+Check for null values and outliers in the StormEvents table
+```
+
+### Query Construction Step-by-Step
+
+For complex queries, you can ask for guidance:
+
+```
+I need to build a query that shows storm events by state, with damage amounts, limited to the top 10 most expensive events. Can you help me construct this?
+```
+
+## Best Practices
+
+1. **Always connect first**: Use the `connect` tool before attempting to run queries
+2. **Verify connections**: Use the `connection_status` tool if you're unsure about your connection state
+3. **Start with small queries**: Use `take` or `limit` operators to test queries before running on large datasets
+4. **Use analysis tools**: The `analyze_data` tool provides valuable insights with minimal effort
+5. **Ask for optimization**: Use the `optimize_query` tool for long-running or complex queries
+
+## KQL Query Examples
+
+Here are some example KQL queries to get you started:
+
+```kql
+// Simple filtering
+StormEvents 
+| where State == "FLORIDA" 
+| take 10
+
+// Aggregation
+StormEvents
+| summarize EventCount=count() by State
+| order by EventCount desc
+| take 10
+
+// Time filtering
+StormEvents
+| where StartTime > ago(30d)
+| summarize EventCount=count() by bin(StartTime, 1d)
+| render timechart
+
+// Join example
+StormEvents
+| where EventType == "Tornado"
+| join (
+    StormEvents 
+    | where EventType == "Flood"
+    | project State, FloodTime=StartTime
+) on State
+| project State, TornadoTime=StartTime, FloodTime
+| take 10
+```
+
+## Troubleshooting MCP Configuration
+
+If you're having issues with the MCP configuration:
+
+1. **Missing mcp.json**: Create the file manually in the `.vscode` directory as described above
+2. **Configuration not showing**: Ensure the `mcp.json` file is properly formatted and located in the `.vscode` directory
+3. **Server not connecting**: Check that the hostname and port specified in the `mcp.json` file are available
+4. **Copilot not detecting server**: Restart VS Code after creating or modifying the `mcp.json` file
+
+## Troubleshooting Common Issues
+
+In addition to the general troubleshooting tips mentioned earlier, here are specific solutions for common tool issues:
+
+### Connect Tool Issues
+
+- **Error: "Failed to connect"**: Verify your Azure credentials are valid and you have access to the specified cluster and database
+- **Timeout errors**: Check your network connection and firewall settings
+- **Authentication failures**: Ensure you're logged into Azure with `az login` or have valid environment credentials
+
+### Query Execution Issues
+
+- **Timeout on large queries**: Add filters or time constraints to reduce the data volume
+- **Syntax errors**: Use the `optimize_query` tool to check and fix your query syntax
+- **Missing columns**: Verify column names using schema exploration before querying
+
+### Data Analysis Issues
+
+- **Empty analysis results**: Ensure your query returns data before analyzing
+- **Correlation errors**: Check that your data contains at least two numeric columns for correlation analysis
+- **Visualization preparation**: For `plot_ready` analysis, include both categorical and numeric columns for best results
 
 ## Usage with AI Assistants
 
@@ -124,15 +376,6 @@ This MCP server is designed to work with AI assistants that support the Model Co
 2. Execute read-only KQL queries
 3. Analyze query results
 4. Provide guidance on data analysis
-
-## Troubleshooting
-
-If you encounter problems:
-
-1. **Missing dependencies**: Run `python setup-mcp.py` to install all required packages
-2. **Server won't start**: Check if another process is using the same port
-3. **Connection issues**: Verify your Azure credentials and network connectivity 
-4. **Import errors**: Make sure you're running the server from the project root directory
 
 ## Security Considerations
 

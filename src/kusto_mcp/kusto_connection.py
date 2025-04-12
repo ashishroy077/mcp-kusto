@@ -29,11 +29,18 @@ except ImportError:
             async def show_input_box(options):
                 prompt = options.get("prompt", "")
                 default = options.get("value", "")
-                print(f"\n{prompt}")
-                print(f"Default: {default}")
+                # Use proper MCP protocol formatting for messages
+                msg = {"type": "input", "message": f"{prompt}", "default": default}
+                print(json.dumps(msg))
                 return input("Value: ") or default
     
     vscode = VSCodeFallback()
+
+# Define a proper logging function for MCP protocol
+def log_message(message, type="info"):
+    """Log messages in MCP protocol format"""
+    msg = {"type": type, "message": message}
+    print(json.dumps(msg), flush=True)
 
 class KustoConnectionManager:
     """
@@ -51,7 +58,7 @@ class KustoConnectionManager:
         if os.environ.get("AZURE_KUSTO_CLUSTER") and os.environ.get("AZURE_KUSTO_DATABASE"):
             self.current_cluster = os.environ.get("AZURE_KUSTO_CLUSTER")
             self.current_database = os.environ.get("AZURE_KUSTO_DATABASE")
-            print(f"Using Kusto cluster from environment: {self.current_cluster}")
+            log_message(f"Using Kusto cluster from environment: {self.current_cluster}")
         else:
             self.config_file = Path.home() / ".kusto_mcp_config.json"
             self._load_config()
@@ -79,7 +86,7 @@ class KustoConnectionManager:
                 json.dump(config, f)
         except IOError:
             # Log error but continue if config can't be saved
-            print(f"Warning: Could not save configuration to {self.config_file}")
+            log_message(f"Warning: Could not save configuration to {self.config_file}", "warning")
     
     async def initialize_connection(self, cluster: str, database: str) -> bool:
         """
