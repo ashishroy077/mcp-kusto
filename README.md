@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/ashishroy077-mcp-kusto-badge.png)](https://mseep.ai/app/ashishroy077-mcp-kusto)
+
 # Azure Kusto MCP Server
 
 A Model Context Protocol (MCP) server that connects to Azure Kusto, enabling AI assistants to explore data schemas and execute KQL queries.
